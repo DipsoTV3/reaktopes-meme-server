@@ -2,6 +2,29 @@ from flask import Flask, request, send_file
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
+import uuid
+import os
+
+@app.route("/inline", methods=["GET"])
+def inline_meme():
+    text = request.args.get("text", "Привет 🐶")
+
+    img = Image.new("RGB", (600, 400), (30, 30, 30))
+    draw = ImageDraw.Draw(img)
+
+    try:
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 36)
+    except:
+        font = ImageFont.load_default()
+
+    w, h = draw.textbbox((0, 0), text, font=font)[2:]
+    draw.text(((600-w)//2, (400-h)//2), text, fill="white", font=font)
+
+    filename = f"inline_{uuid.uuid4().hex}.jpg"
+    path = f"/tmp/{filename}"
+    img.save(path, "JPEG", quality=90)
+
+    return send_file(path, mimetype="image/jpeg")
 
 app = Flask(__name__)
 
