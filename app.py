@@ -2,32 +2,10 @@ from flask import Flask, request, send_file
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 import textwrap
-import uuid
-import os
-
-@app.route("/inline", methods=["GET"])
-def inline_meme():
-    text = request.args.get("text", "Привет 🐶")
-
-    img = Image.new("RGB", (600, 400), (30, 30, 30))
-    draw = ImageDraw.Draw(img)
-
-    try:
-        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 36)
-    except:
-        font = ImageFont.load_default()
-
-    w, h = draw.textbbox((0, 0), text, font=font)[2:]
-    draw.text(((600-w)//2, (400-h)//2), text, fill="white", font=font)
-
-    filename = f"inline_{uuid.uuid4().hex}.jpg"
-    path = f"/tmp/{filename}"
-    img.save(path, "JPEG", quality=90)
-
-    return send_file(path, mimetype="image/jpeg")
 
 app = Flask(__name__)
 
+# ---------- MEME ПО ФОТО (для личных сообщений) ----------
 @app.route("/meme", methods=["POST"])
 def meme():
     if "photo" not in request.files:
@@ -53,15 +31,17 @@ def meme():
         font = ImageFont.load_default()
         small = ImageFont.load_default()
 
-    # --- ТЕКСТ МЕМА ---
+    # текст мема
     lines = textwrap.wrap(text, width=26)
     y = H + 12
 
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=font)
-        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
         x = (W - tw) // 2
 
+        # обводка
         for ox in (-2, -1, 0, 1, 2):
             for oy in (-2, -1, 0, 1, 2):
                 draw.text((x + ox, y + oy), line, font=font, fill="black")
@@ -69,14 +49,14 @@ def meme():
         draw.text((x, y), line, font=font, fill="white")
         y += th + 10
 
-    # --- WATERMARK (только если НЕ premium) ---
+    # watermark (только для free)
     if not premium:
         watermark = "🐾 ReaktoPes"
         wb = draw.textbbox((0, 0), watermark, font=small)
-        ww, wh = wb[2] - wb[0], wb[3] - wb[1]
+        ww = wb[2] - wb[0]
+        wh = wb[3] - wb[1]
         wx = W - ww - 12
         wy = H + bar_h - wh - 10
-
         draw.text((wx, wy), watermark, font=small, fill=(200, 200, 200))
 
     bio = BytesIO()
@@ -85,6 +65,43 @@ def meme():
 
     return send_file(bio, mimetype="image/jpeg")
 
+
+# ---------- INLINE МЕМ (картинка по URL) ----------
+@app.route("/inline", methods=["GET"])
+def inline_meme():
+    text = request.args.get("text", "Привет 🐶")
+
+    img = Image.new("RGB", (600, 400), (30, 30, 30))
+    draw = ImageDraw.Draw(img)
+
+    try:
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 36)
+    except:
+        font = ImageFont.load_default()
+
+    bbox = draw.textbbox((0, 0), text, font=font)
+    w = bbox[2] - bbox[0]
+    h = bbox[3] - bbox[1]
+
+    draw.text(
+        ((600 - w) // 2, (400 - h) // 2),
+        text,
+        fill="white",
+        font=font
+    )
+
+    bio = BytesIO()
+    img.save(bio, "JPEG", quality=90)
+    bio.seek(0)
+
+    return send_file(bio, mimetype="image/jpeg")
+
+
+# ---------- ПРОВЕРКА СЕРВЕРА ----------
 @app.route("/")
 def index():
     return "ReaktoPes meme server is running 🐶"
+
+
+if __name__ == "__main__":
+    app.run()
